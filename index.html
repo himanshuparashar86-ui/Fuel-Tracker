@@ -1,569 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<meta name="description" content="Private, offline-first fuel expense and SBI BPCL Octane card tracker.">
+<link rel="manifest" href="./manifest.json">
+<title>Fuel Tracker · BPCL Octane</title>
+<style>
+:root{--bg:#f3f7f8;--surface:#fff;--ink:#142b35;--muted:#647782;--line:#dce6e9;--teal:#0f766e;--teal2:#14b8a6;--red:#c2413b;--amber:#b45309;--green:#15803d;--shadow:0 5px 22px #18323d12}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:84px}
+button,input,select,textarea{font:inherit}button{cursor:pointer}.app{max-width:1000px;margin:auto;padding:16px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:5px 0 16px}.brand{display:flex;align-items:center;gap:11px}.logo{width:42px;height:42px;border-radius:13px;background:var(--teal);color:white;display:grid;place-items:center;font-size:23px}.brand h1{font-size:19px;margin:0}.brand p{margin:2px 0 0;color:var(--muted);font-size:12px}
+.status{font-size:12px;color:var(--green);background:#e8f6ef;padding:7px 10px;border-radius:20px;white-space:nowrap}.status.offline{color:var(--amber);background:#fff3df}
+h2{font-size:17px;margin:18px 0 10px}.sub{color:var(--muted);font-size:13px}
+.panel,.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:15px;box-shadow:var(--shadow);margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
+.metric{background:#f5f9fa;border-radius:11px;padding:10px}.metric small{display:block;color:var(--muted);font-size:11px}.metric strong{font-size:17px;display:block;margin-top:3px;overflow-wrap:anywhere}
+.big{font-size:25px;font-weight:750}.row{display:flex;align-items:center;justify-content:space-between;gap:10px}.bar{height:9px;background:#e7eff1;border-radius:20px;overflow:hidden;margin:10px 0}.fill{height:100%;background:var(--teal2);border-radius:20px}.fill.warn{background:#e5a13b}.fill.over{background:var(--red)}
+.pill{font-size:11px;border-radius:30px;padding:4px 8px;background:#e4f5f2;color:#0f766e}.pill.warn{background:#fff1dc;color:var(--amber)}.suggest{background:#f0f9f8;border-radius:12px;padding:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px}
+.btn{border:0;border-radius:10px;padding:10px 14px;background:var(--teal);color:white;font-weight:650}.btn.secondary{background:#e8f1f2;color:var(--ink)}.btn.danger{background:#fff0ef;color:var(--red)}.btn.small{padding:6px 9px;font-size:12px}.btn:disabled{opacity:.5;cursor:not-allowed}
+.actions{display:flex;flex-wrap:wrap;gap:8px}.field{margin:10px 0}.field label{display:block;font-size:12px;font-weight:650;color:var(--muted);margin-bottom:5px}.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:white;padding:10px;color:var(--ink);min-width:0}.formgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+nav{position:fixed;bottom:0;left:0;right:0;background:#ffffffed;backdrop-filter:blur(12px);border-top:1px solid var(--line);display:flex;justify-content:center;z-index:5;padding:7px max(8px,env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))}
+nav button{border:0;background:transparent;color:var(--muted);font-size:11px;padding:6px 13px;border-radius:10px;min-width:68px}nav button.active{background:#e5f5f2;color:var(--teal);font-weight:700}nav span{display:block;font-size:19px}
+.view{display:none}.view.active{display:block}
+.txn{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}.txn:last-child{border:0}.txn b{display:block}.txn small{color:var(--muted)}.txn-right{text-align:right;white-space:nowrap}.txn-actions{display:flex;gap:5px;justify-content:flex-end;margin-top:4px}
+.chartrow{margin:12px 0}.charthead{display:flex;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:5px}.chartbar{height:11px;background:#edf2f3;border-radius:20px;overflow:hidden}.chartbar i{display:block;height:100%;background:var(--teal2)}
+.months{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;align-items:end;height:150px}.month{height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:5px;font-size:10px;color:var(--muted)}.month i{display:block;width:65%;min-height:3px;background:var(--teal2);border-radius:6px 6px 2px 2px}.month b{font-size:10px;color:var(--ink)}
+.modal{position:fixed;inset:0;background:#0c2029a8;display:none;align-items:flex-end;justify-content:center;z-index:10;padding:12px}.modal.open{display:flex}.sheet{background:white;width:min(100%,560px);max-height:92vh;overflow:auto;border-radius:18px;padding:17px}.sheet h2{margin-top:0}.empty{text-align:center;color:var(--muted);padding:22px 8px}.hint{font-size:12px;padding:9px;border-radius:9px;background:#eaf6f4;color:#12665f}.hint.warn{background:#fff2df;color:var(--amber)}.toast{position:fixed;left:50%;bottom:88px;transform:translateX(-50%);background:#17323b;color:white;padding:10px 15px;border-radius:30px;opacity:0;pointer-events:none;transition:.2s;z-index:20;white-space:nowrap}.toast.show{opacity:1}.hidden{display:none!important}.muted{color:var(--muted)}
+@media(max-width:650px){.app{padding:12px}.grid{grid-template-columns:1fr}.metrics{gap:6px}.metric{padding:8px}.metric strong{font-size:15px}.brand h1{font-size:17px}.status{font-size:10px;padding:6px 8px}.formgrid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+<header><div class="brand"><div class="logo">⛽</div><div><h1>Fuel Tracker</h1><p>SBI BPCL Octane · Private & offline-first</p></div></div><div id="networkStatus" class="status">● Checking…</div></header>
+<main>
+<section id="view-dashboard" class="view active">
+<div class="row"><div><div class="sub">Billing cycle</div><b id="cycleLabel">—</b></div><button class="btn" onclick="openTxn()">＋ Add Fuel</button></div>
+<div class="panel" style="margin-top:13px"><div class="sub">Combined cycle spend</div><div class="row"><div id="combinedSpend" class="big">₹0</div><span id="combinedCount" class="pill">0 / 6 fill-ups</span></div><div class="bar"><div id="combinedBar" class="fill" style="width:0"></div></div><div class="row sub"><span id="combinedBudget">Budget ₹20,000</span><b id="combinedRemaining">₹20,000 remaining</b></div></div>
+<h2>Card-wise tracker</h2><div id="cardDashboard" class="grid"></div>
+<h2>Recent transactions</h2><div class="panel" id="recentList"><div class="empty">No fuel entries yet. Tap Add Fuel to begin.</div></div>
+<div class="sub">All records stay on this device. Export JSON backups regularly.</div>
+</section>
+<section id="view-transactions" class="view">
+<div class="row"><h2>Transactions</h2><button class="btn" onclick="openTxn()">＋ Add Fuel</button></div>
+<div class="panel"><div class="formgrid">
+<div class="field"><label>Card</label><select id="fCard" onchange="renderTransactions()"><option value="ALL">All cards</option></select></div>
+<div class="field"><label>Vehicle</label><select id="fVehicle" onchange="renderTransactions()"><option value="ALL">All vehicles</option><option>Fronx</option><option>Ciaz</option><option>Celerio</option></select></div>
+<div class="field"><label>Period</label><select id="fPeriod" onchange="periodChanged()"><option value="ALL">All time</option><option value="CYCLE">Current billing cycle</option><option value="MONTH">Calendar month</option><option value="RANGE">Custom date range</option></select></div>
+<div class="field" id="monthWrap"><label>Month</label><input type="month" id="fMonth" onchange="renderTransactions()"></div>
+<div class="field hidden" id="fromWrap"><label>From</label><input type="date" id="fFrom" onchange="renderTransactions()"></div>
+<div class="field hidden" id="toWrap"><label>To</label><input type="date" id="fTo" onchange="renderTransactions()"></div>
+</div><div class="row"><b id="filterCount">0 transactions</b><b id="filterTotal">₹0</b></div></div>
+<div class="panel" id="transactionList"><div class="empty">No transactions match these filters.</div></div>
+</section>
+<section id="view-reports" class="view">
+<h2>Reports & spending charts</h2><div class="panel"><div class="formgrid"><div class="field"><label>From date</label><input type="date" id="rFrom" onchange="renderReports()"></div><div class="field"><label>To date</label><input type="date" id="rTo" onchange="renderReports()"></div></div><div class="actions"><button class="btn secondary small" onclick="reportPreset('cycle')">Current cycle</button><button class="btn secondary small" onclick="reportPreset('6m')">Last 6 months</button><button class="btn secondary small" onclick="reportPreset('all')">All time</button></div><h2 id="reportTotal">₹0 · 0 fill-ups</h2></div>
+<div class="panel"><b>Spend by card</b><div id="cardChart"></div></div><div class="panel"><b>Spend by vehicle</b><div id="vehicleChart"></div></div><div class="panel"><b>Monthly spend · last 6 months</b><div id="monthChart" class="months"></div></div>
+</section>
+<section id="view-settings" class="view">
+<h2>Settings</h2><div class="panel"><b>Card budgets & billing cycles</b><div id="cardSettings"></div><button class="btn" onclick="saveSettings()">Save card settings</button></div>
+<div class="panel"><b>Backup & restore</b><p class="sub">JSON backup includes cards, settings and every transaction. Keep a copy outside this device.</p><div class="actions"><button class="btn" onclick="exportJSON()">Export JSON backup</button><button class="btn secondary" onclick="document.getElementById('importFile').click()">Import JSON</button><button class="btn secondary" onclick="exportCSV()">Export CSV</button></div><input id="importFile" class="hidden" type="file" accept=".json,application/json" onchange="importJSON(event)"><div class="field"><label>Restore mode</label><select id="importMode"><option value="merge">Merge transactions (keep existing)</option><option value="replace">Replace all app data</option></select></div><div id="backupInfo" class="sub"></div></div>
+<div class="panel"><b>Local data</b><p class="sub">Database: FuelTrackerDB_v1 · IndexedDB · no account or cloud sync.</p><button class="btn danger" onclick="resetApp()">Reset all local data</button></div>
+</section>
+</main>
+</div>
+<nav>
+<button class="active" data-tab="dashboard" onclick="switchTab('dashboard')"><span>⌂</span>Home</button>
+<button data-tab="transactions" onclick="switchTab('transactions')"><span>▤</span>Entries</button>
+<button data-tab="reports" onclick="switchTab('reports')"><span>▥</span>Reports</button>
+<button data-tab="settings" onclick="switchTab('settings')"><span>⚙</span>Settings</button>
+</nav>
+<div id="txnModal" class="modal" role="dialog" aria-modal="true"><div class="sheet"><div class="row"><h2 id="modalTitle">Add fuel</h2><button class="btn secondary small" onclick="closeTxn()">Close</button></div>
+<form id="txnForm" onsubmit="saveTxn(event)"><input type="hidden" id="txnId"><div class="formgrid">
+<div class="field"><label>Date</label><input id="txnDate" type="date" required></div><div class="field"><label>Amount (₹)</label><input id="txnAmount" type="number" min="1" step="1" required inputmode="numeric" oninput="limitHint()"></div>
+<div class="field"><label>Credit card</label><select id="txnCard"></select></div><div class="field"><label>Vehicle</label><select id="txnVehicle"><option>Fronx</option><option>Ciaz</option><option>Celerio</option></select></div>
+<div class="field"><label>Fuel station</label><input id="txnStation" value="BPCL"></div><div class="field"><label>Notes (optional)</label><input id="txnNotes" maxlength="300" placeholder="Odometer, litres, etc."></div>
+</div><div id="limitHint" class="hint">Keep each transaction below ₹4,000.</div><p class="sub">Transactions of ₹4,000 or more will be flagged. This is a tracker reminder, not a guarantee of card rewards.</p><button class="btn" style="width:100%;margin-top:12px" type="submit">Save transaction</button></form>
+</div></div>
+<div id="toast" class="toast"></div>
 <script>
-    let deferredInstallPrompt = null;
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredInstallPrompt = e;
-      const btn = document.getElementById('installBtn');
-      if (btn) btn.style.display = 'inline-flex';
-    });
-
-    document.getElementById('installBtn')?.addEventListener('click', async () => {
-      if (!deferredInstallPrompt) return;
-      deferredInstallPrompt.prompt();
-      await deferredInstallPrompt.userChoice;
-      deferredInstallPrompt = null;
-      document.getElementById('installBtn').style.display = 'none';
-    });
-
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(() => {});
-      });
-    }
-
-    function updateNetworkStatus() {
-      const dot = document.getElementById('networkDot');
-      const txt = document.getElementById('networkText');
-      if (navigator.onLine) {
-        dot.classList.remove('offline');
-        txt.textContent = 'Offline Ready';
-      } else {
-        dot.classList.add('offline');
-        txt.textContent = 'Offline Mode';
-      }
-    }
-    window.addEventListener('online', updateNetworkStatus);
-    window.addEventListener('offline', updateNetworkStatus);
-    updateNetworkStatus();
-
-    const DB_NAME = 'FuelTrackerDB_v1';
-    const DB_VERSION = 1;
-    let db = null;
-
-    const DEFAULT_CARDS = [
-      { id: 'card_himanshu', name: 'Himanshu SBI Fuel', type: 'SBI BPCL Octane', budget: 10000, cycleStartDay: 12, plannedTxns: 3 },
-      { id: 'card_richa', name: 'Richa SBI Fuel Card', type: 'SBI BPCL Octane', budget: 10000, cycleStartDay: 12, plannedTxns: 3 }
-    ];
-
-    const DEFAULT_TERMS = 'Reward rates, monthly caps, exclusions, and fuel surcharge waiver eligibility are subject to current SBI Card terms and are not guaranteed by this tracker.';
-
-    let state = {
-      cards: JSON.parse(JSON.stringify(DEFAULT_CARDS)),
-      transactions: [],
-      termsNote: DEFAULT_TERMS,
-      lastBackupAt: null
-    };
-
-    function openDB() {
-      return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
-        req.onupgradeneeded = (e) => {
-          const database = e.target.result;
-          if (!database.objectStoreNames.contains('app_state')) {
-            database.createObjectStore('app_state', { keyPath: 'key' });
-          }
-        };
-        req.onsuccess = (e) => { db = e.target.result; resolve(db); };
-        req.onerror = (e) => reject(e.target.error);
-      });
-    }
-
-    function saveStateToDB() {
-      return new Promise((resolve, reject) => {
-        if (!db) return resolve();
-        const tx = db.transaction('app_state', 'readwrite');
-        tx.objectStore('app_state').put({ key: 'main', value: state });
-        tx.oncomplete = () => resolve();
-        tx.onerror = (e) => reject(e.target.error);
-      });
-    }
-
-    function loadStateFromDB() {
-      return new Promise((resolve) => {
-        if (!db) return resolve();
-        const tx = db.transaction('app_state', 'readonly');
-        const req = tx.objectStore('app_state').get('main');
-        req.onsuccess = () => {
-          if (req.result && req.result.value) state = { ...state, ...req.result.value };
-          resolve();
-        };
-        req.onerror = () => resolve();
-      });
-    }
-
-    function formatINR(num) { return '₹' + Math.round(Number(num) || 0).toLocaleString('en-IN'); }
-
-    function toISODate(d) {
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    }
-
-    function formatDisplayDate(iso) {
-      if (!iso) return '';
-      const [y, m, d] = iso.split('-').map(Number);
-      return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-    }
-
-    function getBillingCycleBounds(refDateInput, startDay = 12) {
-      const dt = typeof refDateInput === 'string'
-        ? (() => { const [y, m, d] = refDateInput.split('-').map(Number); return new Date(y, m - 1, d); })()
-        : new Date(refDateInput.getFullYear(), refDateInput.getMonth(), refDateInput.getDate());
-
-      let startYear = dt.getFullYear();
-      let startMonth = dt.getMonth();
-      if (dt.getDate() < startDay) {
-        startMonth -= 1;
-        if (startMonth < 0) { startMonth = 11; startYear -= 1; }
-      }
-      const start = new Date(startYear, startMonth, startDay);
-      let endYear = startYear;
-      let endMonth = startMonth + 1;
-      if (endMonth > 11) { endMonth = 0; endYear += 1; }
-      const end = new Date(endYear, endMonth, startDay - 1);
-
-      return {
-        startISO: toISODate(start),
-        endISO: toISODate(end),
-        label: `${start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} – ${end.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
-      };
-    }
-
-    function getNextSuggestedFillup(card, spent, count) {
-      const remBudget = Math.max(0, card.budget - spent);
-      const remTxns = Math.max(0, card.plannedTxns - count);
-      if (remBudget <= 0) return { amount: 0, note: 'Monthly fuel budget reached', warn: true };
-      if (remTxns === 0) {
-        return { amount: Math.min(remBudget, 3999), note: `${card.plannedTxns}/${card.plannedTxns} planned fill-ups done • ₹${remBudget.toLocaleString('en-IN')} left`, warn: true };
-      }
-      let suggested = remTxns === 1 ? Math.round(remBudget) : Math.floor(remBudget / remTxns);
-      let warn = false;
-      let note = `Fill-up ${count + 1} of ${card.plannedTxns} • Keep below ₹4,000`;
-      if (suggested >= 4000) { suggested = 3999; warn = true; note = 'Capped at ₹3,999 to stay below ₹4,000 limit'; }
-      return { amount: suggested, note, warn };
-    }
-
-    function renderAll() {
-      populateDropdowns();
-      renderDashboard();
-      renderTransactionsView();
-      renderReportsView();
-      renderSettingsView();
-    }
-
-    function populateDropdowns() {
-      const txnCard = document.getElementById('txnCard');
-      const filterCard = document.getElementById('filterCard');
-      const prevFilter = filterCard.value;
-      txnCard.innerHTML = state.cards.map(c => `<option value="${c.id}">${c.name} (${c.type})</option>`).join('');
-      filterCard.innerHTML = `<option value="ALL">All Credit Cards</option>` + state.cards.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-      if ([...filterCard.options].some(o => o.value === prevFilter)) filterCard.value = prevFilter;
-    }
-
-    function renderDashboard() {
-      const today = new Date();
-      const activeCycle = getBillingCycleBounds(today, state.cards[0]?.cycleStartDay || 12);
-      document.getElementById('headerCycleText').textContent = activeCycle.label;
-      document.getElementById('termsDisclaimerText').textContent = state.termsNote;
-
-      let combinedBudget = 0, combinedSpent = 0, combinedTxns = 0, combinedPlanned = 0;
-      const container = document.getElementById('dashboardCardsContainer');
-      container.innerHTML = '';
-
-      state.cards.forEach(card => {
-        const cycle = getBillingCycleBounds(today, card.cycleStartDay || 12);
-        const cardTxns = state.transactions.filter(t => t.cardId === card.id && t.date >= cycle.startISO && t.date <= cycle.endISO);
-        const spent = cardTxns.reduce((sum, t) => sum + Number(t.amount), 0);
-        const rem = Math.max(0, card.budget - spent);
-        const pct = card.budget > 0 ? Math.min(100, Math.round((spent / card.budget) * 100)) : 0;
-        const sugg = getNextSuggestedFillup(card, spent, cardTxns.length);
-
-        combinedBudget += Number(card.budget);
-        combinedSpent += spent;
-        combinedTxns += cardTxns.length;
-        combinedPlanned += Number(card.plannedTxns);
-
-        const barClass = spent > card.budget ? 'over' : (pct >= 80 ? 'warn' : '');
-        const remClass = rem === 0 ? 'text-red' : (pct >= 80 ? 'text-orange' : 'text-green');
-
-        const cardEl = document.createElement('div');
-        cardEl.className = 'card';
-        cardEl.innerHTML = `
-          <div class="card-header">
-            <div><div class="card-title">${card.name}</div><div style="font-size:0.72rem;color:var(--text-muted);">${card.type} • Cycle: ${cycle.label}</div></div>
-            <span class="badge ${cardTxns.length >= card.plannedTxns ? 'badge-orange' : 'badge-teal'}">${cardTxns.length} / ${card.plannedTxns} fill-ups</span>
-          </div>
-          <div class="metrics-3">
-            <div class="metric-box"><div class="metric-lbl">Budget</div><div class="metric-val">${formatINR(card.budget)}</div></div>
-            <div class="metric-box"><div class="metric-lbl">Spent</div><div class="metric-val">${formatINR(spent)}</div></div>
-            <div class="metric-box"><div class="metric-lbl">Remaining</div><div class="metric-val ${remClass}">${formatINR(rem)}</div></div>
-          </div>
-          <div class="progress-wrap"><div class="progress-fill ${barClass}" style="width:${pct}%"></div></div>
-          <div class="suggestion-box ${sugg.warn ? 'warn' : ''}">
-            <div><div class="suggestion-title">Next Suggested Transaction</div><div class="suggestion-note">${sugg.note}</div></div>
-            <div style="text-align:right;"><div class="suggestion-val">${formatINR(sugg.amount)}</div><button class="btn btn-sm btn-outline" style="margin-top:4px;padding:3px 9px;font-size:0.7rem;" onclick="openTxnModal(null, '${card.id}', ${sugg.amount})">Use</button></div>
-          </div>
-        `;
-        container.appendChild(cardEl);
-      });
-
-      const combinedRem = Math.max(0, combinedBudget - combinedSpent);
-      const combinedPct = combinedBudget > 0 ? Math.min(100, Math.round((combinedSpent / combinedBudget) * 100)) : 0;
-      const allTime = state.transactions.reduce((sum, t) => sum + Number(t.amount), 0);
-
-      document.getElementById('dashTotalSpend').textContent = formatINR(combinedSpent);
-      document.getElementById('dashTotalBudgetSub').textContent = `of ${formatINR(combinedBudget)} budget`;
-      document.getElementById('dashTotalRem').textContent = formatINR(combinedRem);
-      document.getElementById('dashTotalTxns').textContent = `${combinedTxns} / ${combinedPlanned}`;
-      document.getElementById('dashAllTimeSpend').textContent = formatINR(allTime);
-
-      const combBar = document.getElementById('dashCombinedBar');
-      combBar.style.width = `${combinedPct}%`;
-      combBar.className = 'progress-fill ' + (combinedSpent > combinedBudget ? 'over' : (combinedPct >= 80 ? 'warn' : ''));
-
-      document.getElementById('lastBackupText').textContent = state.lastBackupAt
-        ? `Last JSON backup: ${new Date(state.lastBackupAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}. Export periodically.`
-        : 'No JSON backup exported yet. Keep a local copy safe.';
-
-      const recentList = document.getElementById('recentTxnsList');
-      const sorted = [...state.transactions].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
-      recentList.innerHTML = sorted.length === 0
-        ? `<div class="empty-state">No fuel transactions recorded yet.<br/>Tap <strong>+ Add Fuel</strong> to log your first BPCL fill-up.</div>`
-        : sorted.slice(0, 5).map(renderTxnRowHTML).join('');
-    }
-
-    function renderTxnRowHTML(txn) {
-      const cardName = state.cards.find(c => c.id === txn.cardId)?.name || 'Unknown Card';
-      const overSingleLimit = Number(txn.amount) >= 4000;
-      return `
-        <div class="txn-item">
-          <div class="txn-left">
-            <div class="txn-vehicle-icon">${txn.vehicle.slice(0, 3).toUpperCase()}</div>
-            <div class="txn-main">
-              <div class="txn-title">${txn.vehicle} • ${txn.station || 'BPCL'}</div>
-              <div class="txn-meta">${formatDisplayDate(txn.date)} • ${cardName}</div>
-              ${txn.notes ? `<div class="txn-notes">${escapeHTML(txn.notes)}</div>` : ''}
-            </div>
-          </div>
-          <div class="txn-right">
-            <div class="txn-amount ${overSingleLimit ? 'text-orange' : ''}">${formatINR(txn.amount)}</div>
-            <div class="txn-actions">
-              <button class="icon-btn" onclick="openTxnModal('${txn.id}')">Edit</button>
-              <button class="icon-btn del" onclick="deleteTransaction('${txn.id}')">Delete</button>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
-    function escapeHTML(str) {
-      return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
-    }
-
-    function openTxnModal(editId = null, prefillCardId = null, prefillAmount = null) {
-      const form = document.getElementById('txnForm');
-      form.reset();
-      document.getElementById('txnId').value = '';
-      document.getElementById('txnModalTitle').textContent = 'Add Fuel Transaction';
-      document.getElementById('txnDate').value = toISODate(new Date());
-      document.getElementById('txnStation').value = 'BPCL';
-
-      if (editId) {
-        const existing = state.transactions.find(t => t.id === editId);
-        if (existing) {
-          document.getElementById('txnModalTitle').textContent = 'Edit Fuel Transaction';
-          document.getElementById('txnId').value = existing.id;
-          document.getElementById('txnDate').value = existing.date;
-          document.getElementById('txnAmount').value = existing.amount;
-          document.getElementById('txnCard').value = existing.cardId;
-          document.getElementById('txnVehicle').value = existing.vehicle;
-          document.getElementById('txnStation').value = existing.station || 'BPCL';
-          document.getElementById('txnNotes').value = existing.notes || '';
-        }
-      } else {
-        if (prefillCardId) document.getElementById('txnCard').value = prefillCardId;
-        if (prefillAmount && prefillAmount > 0) document.getElementById('txnAmount').value = prefillAmount;
-      }
-      updateLiveLimitFeedback();
-      document.getElementById('txnModal').classList.add('open');
-    }
-
-    function closeTxnModal() { document.getElementById('txnModal').classList.remove('open'); }
-
-    function updateLiveLimitFeedback() {
-      const cardId = document.getElementById('txnCard').value;
-      const dateVal = document.getElementById('txnDate').value || toISODate(new Date());
-      const amountVal = Number(document.getElementById('txnAmount').value) || 0;
-      const editId = document.getElementById('txnId').value;
-      const hintEl = document.getElementById('liveLimitHint');
-      const card = state.cards.find(c => c.id === cardId);
-      if (!card) return;
-
-      const cycle = getBillingCycleBounds(dateVal, card.cycleStartDay || 12);
-      const spentSoFar = state.transactions.filter(t => t.cardId === card.id && t.id !== editId && t.date >= cycle.startISO && t.date <= cycle.endISO).reduce((s, t) => s + Number(t.amount), 0);
-      const projectedTotal = spentSoFar + amountVal;
-
-      if (amountVal >= 4000) {
-        hintEl.className = 'helper-feedback badge-orange';
-        hintEl.textContent = `Alert: ₹${amountVal.toLocaleString('en-IN')} is ₹4,000 or above. Keep individual fill-ups under ₹4,000 for optimal Octane reward caps.`;
-      } else if (projectedTotal > card.budget) {
-        hintEl.className = 'helper-feedback badge-red';
-        hintEl.textContent = `Over budget: Cycle spend for ${cycle.label} will reach ${formatINR(projectedTotal)} (Budget: ${formatINR(card.budget)}).`;
-      } else {
-        hintEl.className = 'helper-feedback badge-teal';
-        hintEl.textContent = `Within planned limit (< ₹4,000) • Cycle (${cycle.label}) remaining after this: ${formatINR(card.budget - projectedTotal)}`;
-      }
-    }
-
-    async function saveTransaction(e) {
-      e.preventDefault();
-      const id = document.getElementById('txnId').value || ('txn_' + Date.now());
-      const txn = {
-        id,
-        date: document.getElementById('txnDate').value,
-        amount: Number(document.getElementById('txnAmount').value),
-        cardId: document.getElementById('txnCard').value,
-        vehicle: document.getElementById('txnVehicle').value,
-        station: document.getElementById('txnStation').value.trim() || 'BPCL',
-        notes: document.getElementById('txnNotes').value.trim()
-      };
-      const idx = state.transactions.findIndex(t => t.id === id);
-      if (idx >= 0) state.transactions[idx] = txn; else state.transactions.push(txn);
-      await saveStateToDB();
-      closeTxnModal();
-      renderAll();
-      showToast('Transaction saved locally');
-    }
-
-    async function deleteTransaction(id) {
-      const txn = state.transactions.find(t => t.id === id);
-      if (!txn || !window.confirm(`Delete this ${formatINR(txn.amount)} fuel transaction for ${txn.vehicle} on ${formatDisplayDate(txn.date)}?`)) return;
-      state.transactions = state.transactions.filter(t => t.id !== id);
-      await saveStateToDB();
-      renderAll();
-      showToast('Transaction deleted');
-    }
-
-    function handlePeriodTypeChange() {
-      const type = document.getElementById('filterPeriodType').value;
-      document.getElementById('filterMonth').style.display = type === 'MONTH' ? 'block' : 'none';
-      document.getElementById('filterRangeWrap').style.display = type === 'RANGE' ? 'grid' : 'none';
-      renderTransactionsView();
-    }
-
-    function resetFilters() {
-      document.getElementById('filterCard').value = 'ALL';
-      document.getElementById('filterVehicle').value = 'ALL';
-      document.getElementById('filterPeriodType').value = 'ALL';
-      handlePeriodTypeChange();
-    }
-
-    function renderTransactionsView() {
-      const cardF = document.getElementById('filterCard').value;
-      const vehF = document.getElementById('filterVehicle').value;
-      const periodType = document.getElementById('filterPeriodType').value;
-      const monthVal = document.getElementById('filterMonth').value;
-      const startVal = document.getElementById('filterStart').value;
-      const endVal = document.getElementById('filterEnd').value;
-      const activeCycle = getBillingCycleBounds(new Date(), state.cards[0]?.cycleStartDay || 12);
-
-      const filtered = state.transactions.filter(t => {
-        if (cardF !== 'ALL' && t.cardId !== cardF) return false;
-        if (vehF !== 'ALL' && t.vehicle !== vehF) return false;
-        if (periodType === 'CURRENT_CYCLE' && (t.date < activeCycle.startISO || t.date > activeCycle.endISO)) return false;
-        if (periodType === 'MONTH' && monthVal && !t.date.startsWith(monthVal)) return false;
-        if (periodType === 'RANGE' && ((startVal && t.date < startVal) || (endVal && t.date > endVal))) return false;
-        return true;
-      }).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
-
-      const total = filtered.reduce((s, t) => s + Number(t.amount), 0);
-      document.getElementById('filteredCountText').textContent = `${filtered.length} transaction${filtered.length === 1 ? '' : 's'}`;
-      document.getElementById('filteredTotalText').textContent = `Total: ${formatINR(total)}`;
-      document.getElementById('allTxnsList').innerHTML = filtered.length === 0 ? `<div class="empty-state">No matching fuel transactions found.</div>` : filtered.map(renderTxnRowHTML).join('');
-    }
-
-    function setReportPreset(preset) {
-      const today = new Date();
-      if (preset === 'cycle') {
-        const c = getBillingCycleBounds(today, state.cards[0]?.cycleStartDay || 12);
-        document.getElementById('reportFrom').value = c.startISO;
-        document.getElementById('reportTo').value = c.endISO;
-      } else if (preset === '6m') {
-        document.getElementById('reportFrom').value = toISODate(new Date(today.getFullYear(), today.getMonth() - 5, 1));
-        document.getElementById('reportTo').value = toISODate(today);
-      } else {
-        document.getElementById('reportFrom').value = '';
-        document.getElementById('reportTo').value = '';
-      }
-      renderReportsView();
-    }
-
-    function renderReportsView() {
-      const from = document.getElementById('reportFrom').value;
-      const to = document.getElementById('reportTo').value;
-      const txns = state.transactions.filter(t => (!from || t.date >= from) && (!to || t.date <= to));
-      const total = txns.reduce((s, t) => s + Number(t.amount), 0);
-      document.getElementById('reportTotalSpend').textContent = formatINR(total);
-      document.getElementById('reportTotalCount').textContent = `${txns.length} fill-up${txns.length === 1 ? '' : 's'}`;
-
-      document.getElementById('reportCardChart').innerHTML = state.cards.map((c, idx) => {
-        const sum = txns.filter(t => t.cardId === c.id).reduce((s, t) => s + Number(t.amount), 0);
-        const pct = total > 0 ? Math.round((sum / total) * 100) : 0;
-        return `<div><div class="bar-row-top"><span>${c.name}</span><span>${formatINR(sum)} (${pct}%)</span></div><div class="bar-track"><div class="bar-fill ${idx % 2 === 1 ? 'teal' : ''}" style="width:${pct}%"></div></div></div>`;
-      }).join('');
-
-      document.getElementById('reportVehicleChart').innerHTML = ['Fronx', 'Ciaz', 'Celerio'].map((v, idx) => {
-        const sum = txns.filter(t => t.vehicle === v).reduce((s, t) => s + Number(t.amount), 0);
-        const pct = total > 0 ? Math.round((sum / total) * 100) : 0;
-        return `<div><div class="bar-row-top"><span>${v}</span><span>${formatINR(sum)} (${pct}%)</span></div><div class="bar-track"><div class="bar-fill ${idx === 1 ? 'teal' : ''}" style="width:${pct}%"></div></div></div>`;
-      }).join('');
-
-      const now = new Date();
-      const months = [];
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        months.push({ label: d.toLocaleDateString('en-IN', { month: 'short' }), sum: state.transactions.filter(t => t.date.startsWith(key)).reduce((s, t) => s + Number(t.amount), 0) });
-      }
-      const maxM = Math.max(1, ...months.map(m => m.sum));
-      document.getElementById('reportMonthChart').innerHTML = months.map(m => {
-        const hPct = Math.max(4, Math.round((m.sum / maxM) * 82));
-        const shortVal = m.sum >= 1000 ? `₹${(m.sum / 1000).toFixed(1)}k` : (m.sum > 0 ? `₹${m.sum}` : '₹0');
-        return `<div class="month-col"><div class="month-val">${shortVal}</div><div class="month-bar" style="height:${hPct}%"></div><div class="month-lbl">${m.label}</div></div>`;
-      }).join('');
-    }
-
-    function renderSettingsView() {
-      document.getElementById('settingsCardsForm').innerHTML = state.cards.map((c, i) => `
-        <div style="padding:12px;background:var(--bg);border-radius:12px;margin-bottom:12px;">
-          <div style="font-size:0.76rem;font-weight:700;color:var(--teal-dark);margin-bottom:8px;">CARD ${i + 1} (${c.type})</div>
-          <div class="form-group"><label class="form-label">Card Display Name</label><input type="text" id="cfg_name_${c.id}" class="form-control" value="${escapeHTML(c.name)}" /></div>
-          <div class="form-row">
-            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Monthly Budget (₹)</label><input type="number" id="cfg_budget_${c.id}" class="form-control" min="500" step="100" value="${c.budget}" /></div>
-            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Cycle Start Day (1–28)</label><input type="number" id="cfg_day_${c.id}" class="form-control" min="1" max="28" value="${c.cycleStartDay}" /></div>
-          </div>
-        </div>
-      `).join('');
-      document.getElementById('settingTermsNote').value = state.termsNote;
-      document.getElementById('settingsBackupMeta').textContent = state.lastBackupAt ? `Last backup exported: ${new Date(state.lastBackupAt).toLocaleString('en-IN')}` : 'Tip: Export a JSON backup after logging transactions.';
-    }
-
-    async function saveCardSettings() {
-      state.cards.forEach(c => {
-        const n = document.getElementById(`cfg_name_${c.id}`).value.trim();
-        const b = Number(document.getElementById(`cfg_budget_${c.id}`).value);
-        const d = Number(document.getElementById(`cfg_day_${c.id}`).value);
-        if (n) c.name = n;
-        if (b >= 500) c.budget = b;
-        if (d >= 1 && d <= 28) c.cycleStartDay = d;
-      });
-      await saveStateToDB();
-      renderAll();
-      showToast('Card settings updated');
-    }
-
-    async function saveTermsNote() {
-      state.termsNote = document.getElementById('settingTermsNote').value.trim() || DEFAULT_TERMS;
-      await saveStateToDB();
-      renderAll();
-      showToast('Terms note saved');
-    }
-
-    async function exportJSONBackup() {
-      state.lastBackupAt = new Date().toISOString();
-      await saveStateToDB();
-      renderAll();
-      const blob = new Blob([JSON.stringify({ app: 'Fuel Tracker - SBI BPCL Octane', exportedAt: state.lastBackupAt, version: 1, data: state }, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `fuel-tracker-backup-${toISODate(new Date())}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      showToast('JSON backup downloaded');
-    }
-
-    function exportCSV() {
-      const headers = ['Date', 'Credit Card', 'Vehicle', 'Station', 'Amount (INR)', 'Notes'];
-      const rows = [...state.transactions].sort((a, b) => b.date.localeCompare(a.date)).map(t => {
-        const cardName = state.cards.find(c => c.id === t.cardId)?.name || t.cardId;
-        return [t.date, cardName, t.vehicle, t.station || 'BPCL', t.amount, t.notes || ''].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
-      });
-      const blob = new Blob(['\uFEFF' + [headers.join(','), ...rows].join('\n')], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `fuel-tracker-history-${toISODate(new Date())}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      showToast('CSV exported for Excel');
-    }
-
-    let pendingImportData = null;
-    function handleImportFile(event) {
-      const file = event.target.files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const parsed = JSON.parse(e.target.result);
-          const importedState = parsed.data ? parsed.data : parsed;
-          if (!Array.isArray(importedState.transactions) || !Array.isArray(importedState.cards)) { alert('Invalid backup file format.'); return; }
-          pendingImportData = importedState;
-          document.getElementById('importSummaryText').textContent = `Found ${importedState.transactions.length} fuel transaction(s) and ${importedState.cards.length} card configuration(s) in "${file.name}". Choose how you would like to restore:`;
-          document.getElementById('importModal').classList.add('open');
-        } catch { alert('Could not read JSON backup file.'); }
-        finally { event.target.value = ''; }
-      };
-      reader.readAsText(file);
-    }
-
-    function closeImportModal() { pendingImportData = null; document.getElementById('importModal').classList.remove('open'); }
-
-    async function executeImport(mode) {
-      if (!pendingImportData) return;
-      if (mode === 'replace') state = { ...state, ...pendingImportData };
-      else {
-        const existingIds = new Set(state.transactions.map(t => t.id));
-        state.transactions = [...state.transactions, ...pendingImportData.transactions.filter(t => !existingIds.has(t.id))];
-      }
-      await saveStateToDB();
-      closeImportModal();
-      renderAll();
-      showToast('Backup restored successfully');
-    }
-
-    async function confirmAppReset() {
-      if (!window.confirm('WARNING: This will permanently erase all locally stored fuel transactions and reset card settings. Have you exported a JSON backup first?')) return;
-      state = { cards: JSON.parse(JSON.stringify(DEFAULT_CARDS)), transactions: [], termsNote: DEFAULT_TERMS, lastBackupAt: null };
-      await saveStateToDB();
-      renderAll();
-      showToast('App data reset');
-    }
-
-    function switchTab(tabName) {
-      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-      document.getElementById(`view-${tabName}`).classList.add('active');
-      document.querySelector(`.nav-btn[data-tab="${tabName}"]`).classList.add('active');
-    }
-
-    function showToast(msg) {
-      const el = document.getElementById('toast');
-      el.textContent = msg;
-      el.classList.add('show');
-      clearTimeout(el._timer);
-      el._timer = setTimeout(() => el.classList.remove('show'), 2400);
-    }
-
-    (async function init() {
-      await openDB();
-      await loadStateFromDB();
-      setReportPreset('cycle');
-      renderAll();
-    })();
-  </script>
+'use strict';
+const DB_NAME='FuelTrackerDB_v1', DB_VERSION=1, STORE='app_state', KEY='main';
+const DEFAULT_CARDS=[
+{id:'card_himanshu',name:'Himanshu SBI Fuel',type:'SBI BPCL Octane',budget:10000,cycleStartDay:12,plannedTxns:3},
+{id:'card_richa',name:'Richa SBI Fuel Card',type:'SBI BPCL Octane',budget:10000,cycleStartDay:12,plannedTxns:3}
+];
+const VEHICLES=['Fronx','Ciaz','Celerio'];
+const DEFAULT_STATE=()=>({cards:structuredCloneSafe(DEFAULT_CARDS),transactions:[],lastBackupAt:null});
+let state=DEFAULT_STATE(),db=null;
+function structuredCloneSafe(x){return JSON.parse(JSON.stringify(x))}
+const $=id=>document.getElementById(id);
+const money=n=>'₹'+Math.round(Number(n)||0).toLocaleString('en-IN');
+const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+function parseDate(s){const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)}
+function dateLabel(s){return s?parseDate(s).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):''}
+function cycleBounds(date=new Date(),day=12){let y=date.getFullYear(),m=date.getMonth();if(date.getDate()<day){m--;if(m<0){m=11;y--}}const start=new Date(y,m,day),end=new Date(y,m+1,day-1);return{start:iso(start),end:iso(end),label:`${start.toLocaleDateString('en-IN',{day:'numeric',month:'short'})} – ${end.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}`}}
+function openDB(){return new Promise((resolve,reject)=>{if(!('indexedDB'in window)){reject(Error('IndexedDB unavailable'));return}const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE,{keyPath:'key'})};req.onsuccess=()=>{db=req.result;db.onversionchange=()=>db.close();resolve(db)};req.onerror=()=>reject(req.error)})}
+function loadDB(){return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readonly'),req=tx.objectStore(STORE).get(KEY);req.onsuccess=()=>{if(req.result?.value)state=normalizeState(req.result.value);resolve()};req.onerror=()=>reject(req.error)})}
+function saveDB(){return new Promise((resolve,reject)=>{if(!db){reject(Error('Local database is not available'));return}const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put({key:KEY,value:state});tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||Error('Save aborted'))})}
+function normalizeState(s){const base=DEFAULT_STATE();return{...base,...s,cards:Array.isArray(s.cards)&&s.cards.length?s.cards:base.cards,transactions:Array.isArray(s.transactions)?s.transactions:[]}}
+function cycleTxns(card){const c=cycleBounds(new Date(),Number(card.cycleStartDay)||12);return state.transactions.filter(t=>t.cardId===card.id&&t.date>=c.start&&t.date<=c.end)}
+function suggested(card,spent,count){const rem=Math.max(0,Number(card.budget)-spent),n=Math.max(0,Number(card.plannedTxns)-count);if(!rem)return 0;if(!n)return Math.min(rem,3999);return Math.min(3999,Math.floor(rem/n))}
+function safe(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function render(){renderDashboard();populateFilters();renderTransactions();renderReports();renderSettings()}
+function renderDashboard(){const c=cycleBounds(new Date(),state.cards[0]?.cycleStartDay||12);$('cycleLabel').textContent=c.label;let budget=0,spent=0,count=0,planned=0;const host=$('cardDashboard');host.innerHTML='';
+state.cards.forEach(card=>{const ts=cycleTxns(card),s=ts.reduce((a,t)=>a+Number(t.amount),0),b=Number(card.budget)||0,p=b?Math.min(100,s/b*100):0,r=Math.max(0,b-s);budget+=b;spent+=s;count+=ts.length;planned+=Number(card.plannedTxns)||0;
+const el=document.createElement('article');el.className='card';el.innerHTML=`<div class="row"><b>${safe(card.name)}</b><span class="pill ${ts.length>=card.plannedTxns?'warn':''}">${ts.length}/${card.plannedTxns} fill-ups</span></div><div class="metrics"><div class="metric"><small>Budget</small><strong>${money(b)}</strong></div><div class="metric"><small>Spent</small><strong>${money(s)}</strong></div><div class="metric"><small>Remaining</small><strong>${money(r)}</strong></div></div><div class="bar"><div class="fill ${p>=100?'over':p>=80?'warn':''}" style="width:${p}%"></div></div><div class="suggest"><div><small class="muted">Next suggested fill-up</small><br><b>${money(suggested(card,s,ts.length))}</b><div class="sub">Below ₹4,000 per transaction</div></div><button class="btn small" data-use="${safe(card.id)}">Use</button></div>`;
+el.querySelector('[data-use]').addEventListener('click',()=>openTxn(null,card.id,suggested(card,s,ts.length)));host.appendChild(el)});
+$('combinedSpend').textContent=money(spent);$('combinedCount').textContent=`${count} / ${planned} fill-ups`;$('combinedBudget').textContent=`Budget ${money(budget)}`;$('combinedRemaining').textContent=`${money(Math.max(0,budget-spent))} remaining`;$('combinedBar').style.width=(budget?Math.min(100,spent/budget*100):0)+'%';$('combinedBar').className='fill '+(spent>budget?'over':spent/budget>=.8?'warn':'');
+const recent=[...state.transactions].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);$('recentList').innerHTML=recent.length?recent.map(txnHTML).join(''):'<div class="empty">No fuel entries yet. Tap Add Fuel to begin.</div>';wireTxnActions($('recentList'))}
+function txnHTML(t){const card=state.cards.find(c=>c.id===t.cardId);return `<div class="txn"><div><b>${safe(t.vehicle)} · ${safe(t.station||'BPCL')}</b><small>${dateLabel(t.date)} · ${safe(card?.name||'Unknown card')}</small>${t.notes?`<small><br>${safe(t.notes)}</small>`:''}</div><div class="txn-right"><b>${money(t.amount)} ${Number(t.amount)>=4000?'<span class="pill warn">≥ ₹4k</span>':''}</b><div class="txn-actions"><button class="btn secondary small" data-edit="${safe(t.id)}">Edit</button><button class="btn danger small" data-delete="${safe(t.id)}">Delete</button></div></div></div>`}
+function wireTxnActions(root){root.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openTxn(b.dataset.edit));root.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>deleteTxn(b.dataset.delete))}
+function populateFilters(){const old=$('fCard').value;$('fCard').innerHTML='<option value="ALL">All cards</option>'+state.cards.map(c=>`<option value="${safe(c.id)}">${safe(c.name)}</option>`).join('');if([...$('fCard').options].some(o=>o.value===old))$('fCard').value=old;$('txnCard').innerHTML=state.cards.map(c=>`<option value="${safe(c.id)}">${safe(c.name)}</option>`).join('')}
+function periodChanged(){const p=$('fPeriod').value;$('monthWrap').classList.toggle('hidden',p!=='MONTH');$('fromWrap').classList.toggle('hidden',p!=='RANGE');$('toWrap').classList.toggle('hidden',p!=='RANGE');renderTransactions()}
+function filteredTxns(){const card=$('fCard').value,veh=$('fVehicle').value,p=$('fPeriod').value,c=cycleBounds();return state.transactions.filter(t=>(card==='ALL'||t.cardId===card)&&(veh==='ALL'||t.vehicle===veh)&&(p!=='CYCLE'||(t.date>=c.start&&t.date<=c.end))&&(p!=='MONTH'||!$('fMonth').value||t.date.startsWith($('fMonth').value))&&(p!=='RANGE'||((!$('fFrom').value||t.date>=$('fFrom').value)&&(!$('fTo').value||t.date<=$('fTo').value)))).sort((a,b)=>b.date.localeCompare(a.date))}
+function renderTransactions(){if(!$('transactionList'))return;const a=filteredTxns(),sum=a.reduce((n,t)=>n+Number(t.amount),0);$('filterCount').textContent=`${a.length} transaction${a.length===1?'':'s'}`;$('filterTotal').textContent=money(sum);$('transactionList').innerHTML=a.length?a.map(txnHTML).join(''):'<div class="empty">No transactions match these filters.</div>';wireTxnActions($('transactionList'))}
+function openTxn(id=null,cardId=null,amount=null){$('txnForm').reset();$('txnId').value='';$('txnDate').value=iso(new Date());$('txnStation').value='BPCL';$('modalTitle').textContent=id?'Edit transaction':'Add fuel transaction';if(id){const t=state.transactions.find(x=>x.id===id);if(!t)return;$('txnId').value=t.id;$('txnDate').value=t.date;$('txnAmount').value=t.amount;$('txnCard').value=t.cardId;$('txnVehicle').value=t.vehicle;$('txnStation').value=t.station||'BPCL';$('txnNotes').value=t.notes||''}else{if(cardId)$('txnCard').value=cardId;if(amount>0)$('txnAmount').value=amount}limitHint();$('txnModal').classList.add('open')}
+function closeTxn(){$('txnModal').classList.remove('open')}
+function limitHint(){const n=Number($('txnAmount').value)||0;$('limitHint').textContent=n>=4000?'Alert: this individual transaction is ₹4,000 or above.': 'Keep each transaction strictly below ₹4,000.';$('limitHint').className='hint'+(n>=4000?' warn':'')}
+async function saveTxn(e){e.preventDefault();const id=$('txnId').value||('txn_'+Date.now());const t={id,date:$('txnDate').value,amount:Number($('txnAmount').value),cardId:$('txnCard').value,vehicle:$('txnVehicle').value,station:$('txnStation').value.trim()||'BPCL',notes:$('txnNotes').value.trim()};if(!t.date||!Number.isFinite(t.amount)||t.amount<=0)return toast('Enter a valid date and amount');const i=state.transactions.findIndex(x=>x.id===id);if(i>=0)state.transactions[i]=t;else state.transactions.push(t);try{await saveDB();closeTxn();render();toast('Saved on this device')}catch(err){toast('Save failed: '+err.message)}}
+async function deleteTxn(id){const t=state.transactions.find(x=>x.id===id);if(!t||!confirm(`Delete ${money(t.amount)} on ${dateLabel(t.date)}?`))return;state.transactions=state.transactions.filter(x=>x.id!==id);try{await saveDB();render();toast('Transaction deleted')}catch(e){toast('Could not save deletion')}}
+function chartBars(target,items,total){$(target).innerHTML=items.map(([name,val])=>`<div class="chartrow"><div class="charthead"><span>${safe(name)}</span><b>${money(val)} · ${total?Math.round(val/total*100):0}%</b></div><div class="chartbar"><i style="width:${total?val/total*100:0}%"></i></div></div>`).join('')||'<div class="empty">No data</div>'}
+function reportPreset(which){const now=new Date();if(which==='cycle'){const c=cycleBounds();$('rFrom').value=c.start;$('rTo').value=c.end}else if(which==='6m'){$('rFrom').value=iso(new Date(now.getFullYear(),now.getMonth()-5,1));$('rTo').value=iso(now)}else{$('rFrom').value='';$('rTo').value=''}renderReports()}
+function renderReports(){if(!$('rFrom'))return;const a=state.transactions.filter(t=>(!$('rFrom').value||t.date>=$('rFrom').value)&&(!$('rTo').value||t.date<=$('rTo').value));const total=a.reduce((s,t)=>s+Number(t.amount),0);$('reportTotal').textContent=`${money(total)} · ${a.length} fill-ups`;chartBars('cardChart',state.cards.map(c=>[c.name,a.filter(t=>t.cardId===c.id).reduce((s,t)=>s+Number(t.amount),0)]),total);chartBars('vehicleChart',VEHICLES.map(v=>[v,a.filter(t=>t.vehicle===v).reduce((s,t)=>s+Number(t.amount),0)]),total);
+const now=new Date(),months=[];for(let i=5;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1),key=iso(d).slice(0,7),sum=state.transactions.filter(t=>t.date.startsWith(key)).reduce((s,t)=>s+Number(t.amount),0);months.push({label:d.toLocaleDateString('en-IN',{month:'short'}),sum})}const max=Math.max(1,...months.map(x=>x.sum));$('monthChart').innerHTML=months.map(m=>`<div class="month"><b>${m.sum?money(m.sum):'₹0'}</b><i style="height:${Math.max(3,m.sum/max*75)}%"></i><span>${m.label}</span></div>`).join('')}
+function renderSettings(){$('cardSettings').innerHTML=state.cards.map(c=>`<div class="formgrid" data-card="${safe(c.id)}"><div class="field"><label>Card name</label><input data-name value="${safe(c.name)}"></div><div class="field"><label>Monthly cycle budget (₹)</label><input data-budget type="number" min="1" value="${Number(c.budget)}"></div><div class="field"><label>Cycle start day (1–28)</label><input data-day type="number" min="1" max="28" value="${Number(c.cycleStartDay)||12}"></div><div class="field"><label>Planned fill-ups</label><input data-planned type="number" min="1" max="20" value="${Number(c.plannedTxns)||3}"></div></div><hr style="border:0;border-top:1px solid var(--line)">`).join('');$('backupInfo').textContent=state.lastBackupAt?'Last JSON backup: '+new Date(state.lastBackupAt).toLocaleString('en-IN'):'No backup recorded yet.'}
+async function saveSettings(){document.querySelectorAll('[data-card]').forEach(el=>{const c=state.cards.find(x=>x.id===el.dataset.card);if(!c)return;const n=el.querySelector('[data-name]').value.trim(),b=Number(el.querySelector('[data-budget]').value),d=Number(el.querySelector('[data-day]').value),p=Number(el.querySelector('[data-planned]').value);if(n)c.name=n;if(b>0)c.budget=b;if(d>=1&&d<=28)c.cycleStartDay=d;if(p>=1&&p<=20)c.plannedTxns=p});try{await saveDB();render();toast('Settings saved')}catch(e){toast('Could not save settings')}}
+function download(name,blob){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500)}
+async function exportJSON(){state.lastBackupAt=new Date().toISOString();try{await saveDB();download(`fuel-tracker-backup-${iso(new Date())}.json`,new Blob([JSON.stringify({app:'Fuel Tracker',version:1,exportedAt:state.lastBackupAt,data:state},null,2)],{type:'application/json'}));renderSettings();toast('JSON backup exported')}catch(e){toast('Backup failed: '+e.message)}}
+function exportCSV(){const rows=[['Date','Credit Card','Vehicle','Station','Amount INR','Notes'],...state.transactions.map(t=>[t.date,state.cards.find(c=>c.id===t.cardId)?.name||t.cardId,t.vehicle,t.station||'BPCL',t.amount,t.notes||''])];const csv='\ufeff'+rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');download(`fuel-tracker-${iso(new Date())}.csv`,new Blob([csv],{type:'text/csv;charset=utf-8'}));toast('CSV exported')}
+async function importJSON(e){const f=e.target.files?.[0];if(!f)return;try{const parsed=JSON.parse(await f.text()),raw=parsed.data||parsed;if(!Array.isArray(raw.transactions)||!Array.isArray(raw.cards))throw Error('Invalid backup');const incoming=normalizeState(raw);if(!confirm(`Import ${incoming.transactions.length} transaction(s) using ${$('importMode').value} mode?`))return;if($('importMode').value==='replace')state=incoming;else{const ids=new Set(state.transactions.map(t=>t.id));state.transactions.push(...incoming.transactions.filter(t=>!ids.has(t.id)));}await saveDB();render();toast('Backup imported')}catch(err){alert('Import failed: '+err.message)}finally{e.target.value=''}}
+async function resetApp(){if(!confirm('Permanently erase all locally stored transactions and reset card settings? Export a backup first.'))return;state=DEFAULT_STATE();try{await saveDB();render();toast('Local data reset')}catch(e){toast('Reset failed')}}
+function switchTab(name){document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id==='view-'+name));document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));if(name==='reports')renderReports()}
+function toast(s){$('toast').textContent=s;$('toast').classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('toast').classList.remove('show'),2400)}
+function network(){const el=$('networkStatus');el.textContent=navigator.onLine?'● Online · offline ready':'● Offline mode';el.classList.toggle('offline',!navigator.onLine)}
+window.addEventListener('online',network);window.addEventListener('offline',network);
+async function init(){network();try{await openDB();await loadDB();render();reportPreset('cycle')}catch(err){document.querySelector('main').insertAdjacentHTML('afterbegin',`<div class="panel"><b>Local storage could not be opened.</b><p class="sub">${safe(err.message)}. The page is working, but changes cannot be saved until browser storage is available.</p></div>`);render();}if('serviceWorker'in navigator&&location.protocol==='https:'){navigator.serviceWorker.register('./sw.js').catch(err=>console.warn('SW registration failed',err))}}
+document.addEventListener('DOMContentLoaded',init);
+</script>
 </body>
 </html>
