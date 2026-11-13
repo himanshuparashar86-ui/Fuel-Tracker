@@ -1,131 +1,569 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#0F172A" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Fuel Tracker" />
-  <meta name="description" content="Private, offline-first Personal Fuel Expense & SBI BPCL Octane Rewards Tracker." />
-  <title>Fuel Tracker – SBI BPCL Octane</title>
-  <link rel="manifest" href="./manifest.json" />
-  <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/2933/2933803.png" />
-  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2933/2933803.png" />
+<script>
+    let deferredInstallPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      const btn = document.getElementById('installBtn');
+      if (btn) btn.style.display = 'inline-flex';
+    });
 
-  <style>
-    :root {
-      --navy: #0F172A;
-      --navy-mid: #1E293B;
-      --teal: #0D9488;
-      --teal-dark: #0F766E;
-      --teal-soft: #CCFBF1;
-      --bg: #F1F5F9;
-      --card: #FFFFFF;
-      --text: #0F172A;
-      --text-muted: #64748B;
-      --border: #E2E8F0;
-      --green: #16A34A;
-      --green-soft: #DCFCE7;
-      --orange: #EA580C;
-      --orange-soft: #FFEDD5;
-      --red: #DC2626;
-      --red-soft: #FEE2E2;
-      --shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
-      --radius: 16px;
-      --safe-top: env(safe-area-inset-top, 0px);
-      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    document.getElementById('installBtn')?.addEventListener('click', async () => {
+      if (!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      document.getElementById('installBtn').style.display = 'none';
+    });
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
     }
 
-    * {
-      box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
-      margin: 0;
-      padding: 0;
+    function updateNetworkStatus() {
+      const dot = document.getElementById('networkDot');
+      const txt = document.getElementById('networkText');
+      if (navigator.onLine) {
+        dot.classList.remove('offline');
+        txt.textContent = 'Offline Ready';
+      } else {
+        dot.classList.add('offline');
+        txt.textContent = 'Offline Mode';
+      }
+    }
+    window.addEventListener('online', updateNetworkStatus);
+    window.addEventListener('offline', updateNetworkStatus);
+    updateNetworkStatus();
+
+    const DB_NAME = 'FuelTrackerDB_v1';
+    const DB_VERSION = 1;
+    let db = null;
+
+    const DEFAULT_CARDS = [
+      { id: 'card_himanshu', name: 'Himanshu SBI Fuel', type: 'SBI BPCL Octane', budget: 10000, cycleStartDay: 12, plannedTxns: 3 },
+      { id: 'card_richa', name: 'Richa SBI Fuel Card', type: 'SBI BPCL Octane', budget: 10000, cycleStartDay: 12, plannedTxns: 3 }
+    ];
+
+    const DEFAULT_TERMS = 'Reward rates, monthly caps, exclusions, and fuel surcharge waiver eligibility are subject to current SBI Card terms and are not guaranteed by this tracker.';
+
+    let state = {
+      cards: JSON.parse(JSON.stringify(DEFAULT_CARDS)),
+      transactions: [],
+      termsNote: DEFAULT_TERMS,
+      lastBackupAt: null
+    };
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const database = e.target.result;
+          if (!database.objectStoreNames.contains('app_state')) {
+            database.createObjectStore('app_state', { keyPath: 'key' });
+          }
+        };
+        req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+        req.onerror = (e) => reject(e.target.error);
+      });
     }
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.45;
-      padding-bottom: calc(84px + var(--safe-bottom));
-      min-height: 100vh;
-      overscroll-behavior-y: contain;
+    function saveStateToDB() {
+      return new Promise((resolve, reject) => {
+        if (!db) return resolve();
+        const tx = db.transaction('app_state', 'readwrite');
+        tx.objectStore('app_state').put({ key: 'main', value: state });
+        tx.oncomplete = () => resolve();
+        tx.onerror = (e) => reject(e.target.error);
+      });
     }
 
-    /* Header */
-    .app-header {
-      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-mid) 100%);
-      color: #FFFFFF;
-      padding: calc(14px + var(--safe-top)) 16px 16px;
-      position: sticky;
-      top: 0;
-      z-index: 40;
-      box-shadow: 0 2px 12px rgba(15, 23, 42, 0.18);
+    function loadStateFromDB() {
+      return new Promise((resolve) => {
+        if (!db) return resolve();
+        const tx = db.transaction('app_state', 'readonly');
+        const req = tx.objectStore('app_state').get('main');
+        req.onsuccess = () => {
+          if (req.result && req.result.value) state = { ...state, ...req.result.value };
+          resolve();
+        };
+        req.onerror = () => resolve();
+      });
     }
 
-    .header-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
+    function formatINR(num) { return '₹' + Math.round(Number(num) || 0).toLocaleString('en-IN'); }
+
+    function toISODate(d) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     }
 
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
+    function formatDisplayDate(iso) {
+      if (!iso) return '';
+      const [y, m, d] = iso.split('-').map(Number);
+      return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
     }
 
-    .brand-icon {
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
-      background: rgba(13, 148, 136, 0.22);
-      border: 1px solid rgba(45, 212, 191, 0.4);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #5EEAD4;
-      flex-shrink: 0;
+    function getBillingCycleBounds(refDateInput, startDay = 12) {
+      const dt = typeof refDateInput === 'string'
+        ? (() => { const [y, m, d] = refDateInput.split('-').map(Number); return new Date(y, m - 1, d); })()
+        : new Date(refDateInput.getFullYear(), refDateInput.getMonth(), refDateInput.getDate());
+
+      let startYear = dt.getFullYear();
+      let startMonth = dt.getMonth();
+      if (dt.getDate() < startDay) {
+        startMonth -= 1;
+        if (startMonth < 0) { startMonth = 11; startYear -= 1; }
+      }
+      const start = new Date(startYear, startMonth, startDay);
+      let endYear = startYear;
+      let endMonth = startMonth + 1;
+      if (endMonth > 11) { endMonth = 0; endYear += 1; }
+      const end = new Date(endYear, endMonth, startDay - 1);
+
+      return {
+        startISO: toISODate(start),
+        endISO: toISODate(end),
+        label: `${start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} – ${end.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
+      };
     }
 
-    .brand-title {
-      font-size: 1.12rem;
-      font-weight: 700;
-      letter-spacing: -0.01em;
+    function getNextSuggestedFillup(card, spent, count) {
+      const remBudget = Math.max(0, card.budget - spent);
+      const remTxns = Math.max(0, card.plannedTxns - count);
+      if (remBudget <= 0) return { amount: 0, note: 'Monthly fuel budget reached', warn: true };
+      if (remTxns === 0) {
+        return { amount: Math.min(remBudget, 3999), note: `${card.plannedTxns}/${card.plannedTxns} planned fill-ups done • ₹${remBudget.toLocaleString('en-IN')} left`, warn: true };
+      }
+      let suggested = remTxns === 1 ? Math.round(remBudget) : Math.floor(remBudget / remTxns);
+      let warn = false;
+      let note = `Fill-up ${count + 1} of ${card.plannedTxns} • Keep below ₹4,000`;
+      if (suggested >= 4000) { suggested = 3999; warn = true; note = 'Capped at ₹3,999 to stay below ₹4,000 limit'; }
+      return { amount: suggested, note, warn };
     }
 
-    .brand-sub {
-      font-size: 0.72rem;
-      color: #94A3B8;
-      display: flex;
-      align-items: center;
-      gap: 6px;
+    function renderAll() {
+      populateDropdowns();
+      renderDashboard();
+      renderTransactionsView();
+      renderReportsView();
+      renderSettingsView();
     }
 
-    .status-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 0.7rem;
-      font-weight: 600;
-      padding: 4px 9px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.1);
-      color: #E2E8F0;
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      white-space: nowrap;
+    function populateDropdowns() {
+      const txnCard = document.getElementById('txnCard');
+      const filterCard = document.getElementById('filterCard');
+      const prevFilter = filterCard.value;
+      txnCard.innerHTML = state.cards.map(c => `<option value="${c.id}">${c.name} (${c.type})</option>`).join('');
+      filterCard.innerHTML = `<option value="ALL">All Credit Cards</option>` + state.cards.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+      if ([...filterCard.options].some(o => o.value === prevFilter)) filterCard.value = prevFilter;
     }
 
-    .status-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: #22C55E;
+    function renderDashboard() {
+      const today = new Date();
+      const activeCycle = getBillingCycleBounds(today, state.cards[0]?.cycleStartDay || 12);
+      document.getElementById('headerCycleText').textContent = activeCycle.label;
+      document.getElementById('termsDisclaimerText').textContent = state.termsNote;
+
+      let combinedBudget = 0, combinedSpent = 0, combinedTxns = 0, combinedPlanned = 0;
+      const container = document.getElementById('dashboardCardsContainer');
+      container.innerHTML = '';
+
+      state.cards.forEach(card => {
+        const cycle = getBillingCycleBounds(today, card.cycleStartDay || 12);
+        const cardTxns = state.transactions.filter(t => t.cardId === card.id && t.date >= cycle.startISO && t.date <= cycle.endISO);
+        const spent = cardTxns.reduce((sum, t) => sum + Number(t.amount), 0);
+        const rem = Math.max(0, card.budget - spent);
+        const pct = card.budget > 0 ? Math.min(100, Math.round((spent / card.budget) * 100)) : 0;
+        const sugg = getNextSuggestedFillup(card, spent, cardTxns.length);
+
+        combinedBudget += Number(card.budget);
+        combinedSpent += spent;
+        combinedTxns += cardTxns.length;
+        combinedPlanned += Number(card.plannedTxns);
+
+        const barClass = spent > card.budget ? 'over' : (pct >= 80 ? 'warn' : '');
+        const remClass = rem === 0 ? 'text-red' : (pct >= 80 ? 'text-orange' : 'text-green');
+
+        const cardEl = document.createElement('div');
+        cardEl.className = 'card';
+        cardEl.innerHTML = `
+          <div class="card-header">
+            <div><div class="card-title">${card.name}</div><div style="font-size:0.72rem;color:var(--text-muted);">${card.type} • Cycle: ${cycle.label}</div></div>
+            <span class="badge ${cardTxns.length >= card.plannedTxns ? 'badge-orange' : 'badge-teal'}">${cardTxns.length} / ${card.plannedTxns} fill-ups</span>
+          </div>
+          <div class="metrics-3">
+            <div class="metric-box"><div class="metric-lbl">Budget</div><div class="metric-val">${formatINR(card.budget)}</div></div>
+            <div class="metric-box"><div class="metric-lbl">Spent</div><div class="metric-val">${formatINR(spent)}</div></div>
+            <div class="metric-box"><div class="metric-lbl">Remaining</div><div class="metric-val ${remClass}">${formatINR(rem)}</div></div>
+          </div>
+          <div class="progress-wrap"><div class="progress-fill ${barClass}" style="width:${pct}%"></div></div>
+          <div class="suggestion-box ${sugg.warn ? 'warn' : ''}">
+            <div><div class="suggestion-title">Next Suggested Transaction</div><div class="suggestion-note">${sugg.note}</div></div>
+            <div style="text-align:right;"><div class="suggestion-val">${formatINR(sugg.amount)}</div><button class="btn btn-sm btn-outline" style="margin-top:4px;padding:3px 9px;font-size:0.7rem;" onclick="openTxnModal(null, '${card.id}', ${sugg.amount})">Use</button></div>
+          </div>
+        `;
+        container.appendChild(cardEl);
+      });
+
+      const combinedRem = Math.max(0, combinedBudget - combinedSpent);
+      const combinedPct = combinedBudget > 0 ? Math.min(100, Math.round((combinedSpent / combinedBudget) * 100)) : 0;
+      const allTime = state.transactions.reduce((sum, t) => sum + Number(t.amount), 0);
+
+      document.getElementById('dashTotalSpend').textContent = formatINR(combinedSpent);
+      document.getElementById('dashTotalBudgetSub').textContent = `of ${formatINR(combinedBudget)} budget`;
+      document.getElementById('dashTotalRem').textContent = formatINR(combinedRem);
+      document.getElementById('dashTotalTxns').textContent = `${combinedTxns} / ${combinedPlanned}`;
+      document.getElementById('dashAllTimeSpend').textContent = formatINR(allTime);
+
+      const combBar = document.getElementById('dashCombinedBar');
+      combBar.style.width = `${combinedPct}%`;
+      combBar.className = 'progress-fill ' + (combinedSpent > combinedBudget ? 'over' : (combinedPct >= 80 ? 'warn' : ''));
+
+      document.getElementById('lastBackupText').textContent = state.lastBackupAt
+        ? `Last JSON backup: ${new Date(state.lastBackupAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}. Export periodically.`
+        : 'No JSON backup exported yet. Keep a local copy safe.';
+
+      const recentList = document.getElementById('recentTxnsList');
+      const sorted = [...state.transactions].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+      recentList.innerHTML = sorted.length === 0
+        ? `<div class="empty-state">No fuel transactions recorded yet.<br/>Tap <strong>+ Add Fuel</strong> to log your first BPCL fill-up.</div>`
+        : sorted.slice(0, 5).map(renderTxnRowHTML).join('');
     }
 
-    .status-dot.offline {
-      background: #F59E0B
+    function renderTxnRowHTML(txn) {
+      const cardName = state.cards.find(c => c.id === txn.cardId)?.name || 'Unknown Card';
+      const overSingleLimit = Number(txn.amount) >= 4000;
+      return `
+        <div class="txn-item">
+          <div class="txn-left">
+            <div class="txn-vehicle-icon">${txn.vehicle.slice(0, 3).toUpperCase()}</div>
+            <div class="txn-main">
+              <div class="txn-title">${txn.vehicle} • ${txn.station || 'BPCL'}</div>
+              <div class="txn-meta">${formatDisplayDate(txn.date)} • ${cardName}</div>
+              ${txn.notes ? `<div class="txn-notes">${escapeHTML(txn.notes)}</div>` : ''}
+            </div>
+          </div>
+          <div class="txn-right">
+            <div class="txn-amount ${overSingleLimit ? 'text-orange' : ''}">${formatINR(txn.amount)}</div>
+            <div class="txn-actions">
+              <button class="icon-btn" onclick="openTxnModal('${txn.id}')">Edit</button>
+              <button class="icon-btn del" onclick="deleteTransaction('${txn.id}')">Delete</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function escapeHTML(str) {
+      return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    }
+
+    function openTxnModal(editId = null, prefillCardId = null, prefillAmount = null) {
+      const form = document.getElementById('txnForm');
+      form.reset();
+      document.getElementById('txnId').value = '';
+      document.getElementById('txnModalTitle').textContent = 'Add Fuel Transaction';
+      document.getElementById('txnDate').value = toISODate(new Date());
+      document.getElementById('txnStation').value = 'BPCL';
+
+      if (editId) {
+        const existing = state.transactions.find(t => t.id === editId);
+        if (existing) {
+          document.getElementById('txnModalTitle').textContent = 'Edit Fuel Transaction';
+          document.getElementById('txnId').value = existing.id;
+          document.getElementById('txnDate').value = existing.date;
+          document.getElementById('txnAmount').value = existing.amount;
+          document.getElementById('txnCard').value = existing.cardId;
+          document.getElementById('txnVehicle').value = existing.vehicle;
+          document.getElementById('txnStation').value = existing.station || 'BPCL';
+          document.getElementById('txnNotes').value = existing.notes || '';
+        }
+      } else {
+        if (prefillCardId) document.getElementById('txnCard').value = prefillCardId;
+        if (prefillAmount && prefillAmount > 0) document.getElementById('txnAmount').value = prefillAmount;
+      }
+      updateLiveLimitFeedback();
+      document.getElementById('txnModal').classList.add('open');
+    }
+
+    function closeTxnModal() { document.getElementById('txnModal').classList.remove('open'); }
+
+    function updateLiveLimitFeedback() {
+      const cardId = document.getElementById('txnCard').value;
+      const dateVal = document.getElementById('txnDate').value || toISODate(new Date());
+      const amountVal = Number(document.getElementById('txnAmount').value) || 0;
+      const editId = document.getElementById('txnId').value;
+      const hintEl = document.getElementById('liveLimitHint');
+      const card = state.cards.find(c => c.id === cardId);
+      if (!card) return;
+
+      const cycle = getBillingCycleBounds(dateVal, card.cycleStartDay || 12);
+      const spentSoFar = state.transactions.filter(t => t.cardId === card.id && t.id !== editId && t.date >= cycle.startISO && t.date <= cycle.endISO).reduce((s, t) => s + Number(t.amount), 0);
+      const projectedTotal = spentSoFar + amountVal;
+
+      if (amountVal >= 4000) {
+        hintEl.className = 'helper-feedback badge-orange';
+        hintEl.textContent = `Alert: ₹${amountVal.toLocaleString('en-IN')} is ₹4,000 or above. Keep individual fill-ups under ₹4,000 for optimal Octane reward caps.`;
+      } else if (projectedTotal > card.budget) {
+        hintEl.className = 'helper-feedback badge-red';
+        hintEl.textContent = `Over budget: Cycle spend for ${cycle.label} will reach ${formatINR(projectedTotal)} (Budget: ${formatINR(card.budget)}).`;
+      } else {
+        hintEl.className = 'helper-feedback badge-teal';
+        hintEl.textContent = `Within planned limit (< ₹4,000) • Cycle (${cycle.label}) remaining after this: ${formatINR(card.budget - projectedTotal)}`;
+      }
+    }
+
+    async function saveTransaction(e) {
+      e.preventDefault();
+      const id = document.getElementById('txnId').value || ('txn_' + Date.now());
+      const txn = {
+        id,
+        date: document.getElementById('txnDate').value,
+        amount: Number(document.getElementById('txnAmount').value),
+        cardId: document.getElementById('txnCard').value,
+        vehicle: document.getElementById('txnVehicle').value,
+        station: document.getElementById('txnStation').value.trim() || 'BPCL',
+        notes: document.getElementById('txnNotes').value.trim()
+      };
+      const idx = state.transactions.findIndex(t => t.id === id);
+      if (idx >= 0) state.transactions[idx] = txn; else state.transactions.push(txn);
+      await saveStateToDB();
+      closeTxnModal();
+      renderAll();
+      showToast('Transaction saved locally');
+    }
+
+    async function deleteTransaction(id) {
+      const txn = state.transactions.find(t => t.id === id);
+      if (!txn || !window.confirm(`Delete this ${formatINR(txn.amount)} fuel transaction for ${txn.vehicle} on ${formatDisplayDate(txn.date)}?`)) return;
+      state.transactions = state.transactions.filter(t => t.id !== id);
+      await saveStateToDB();
+      renderAll();
+      showToast('Transaction deleted');
+    }
+
+    function handlePeriodTypeChange() {
+      const type = document.getElementById('filterPeriodType').value;
+      document.getElementById('filterMonth').style.display = type === 'MONTH' ? 'block' : 'none';
+      document.getElementById('filterRangeWrap').style.display = type === 'RANGE' ? 'grid' : 'none';
+      renderTransactionsView();
+    }
+
+    function resetFilters() {
+      document.getElementById('filterCard').value = 'ALL';
+      document.getElementById('filterVehicle').value = 'ALL';
+      document.getElementById('filterPeriodType').value = 'ALL';
+      handlePeriodTypeChange();
+    }
+
+    function renderTransactionsView() {
+      const cardF = document.getElementById('filterCard').value;
+      const vehF = document.getElementById('filterVehicle').value;
+      const periodType = document.getElementById('filterPeriodType').value;
+      const monthVal = document.getElementById('filterMonth').value;
+      const startVal = document.getElementById('filterStart').value;
+      const endVal = document.getElementById('filterEnd').value;
+      const activeCycle = getBillingCycleBounds(new Date(), state.cards[0]?.cycleStartDay || 12);
+
+      const filtered = state.transactions.filter(t => {
+        if (cardF !== 'ALL' && t.cardId !== cardF) return false;
+        if (vehF !== 'ALL' && t.vehicle !== vehF) return false;
+        if (periodType === 'CURRENT_CYCLE' && (t.date < activeCycle.startISO || t.date > activeCycle.endISO)) return false;
+        if (periodType === 'MONTH' && monthVal && !t.date.startsWith(monthVal)) return false;
+        if (periodType === 'RANGE' && ((startVal && t.date < startVal) || (endVal && t.date > endVal))) return false;
+        return true;
+      }).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+
+      const total = filtered.reduce((s, t) => s + Number(t.amount), 0);
+      document.getElementById('filteredCountText').textContent = `${filtered.length} transaction${filtered.length === 1 ? '' : 's'}`;
+      document.getElementById('filteredTotalText').textContent = `Total: ${formatINR(total)}`;
+      document.getElementById('allTxnsList').innerHTML = filtered.length === 0 ? `<div class="empty-state">No matching fuel transactions found.</div>` : filtered.map(renderTxnRowHTML).join('');
+    }
+
+    function setReportPreset(preset) {
+      const today = new Date();
+      if (preset === 'cycle') {
+        const c = getBillingCycleBounds(today, state.cards[0]?.cycleStartDay || 12);
+        document.getElementById('reportFrom').value = c.startISO;
+        document.getElementById('reportTo').value = c.endISO;
+      } else if (preset === '6m') {
+        document.getElementById('reportFrom').value = toISODate(new Date(today.getFullYear(), today.getMonth() - 5, 1));
+        document.getElementById('reportTo').value = toISODate(today);
+      } else {
+        document.getElementById('reportFrom').value = '';
+        document.getElementById('reportTo').value = '';
+      }
+      renderReportsView();
+    }
+
+    function renderReportsView() {
+      const from = document.getElementById('reportFrom').value;
+      const to = document.getElementById('reportTo').value;
+      const txns = state.transactions.filter(t => (!from || t.date >= from) && (!to || t.date <= to));
+      const total = txns.reduce((s, t) => s + Number(t.amount), 0);
+      document.getElementById('reportTotalSpend').textContent = formatINR(total);
+      document.getElementById('reportTotalCount').textContent = `${txns.length} fill-up${txns.length === 1 ? '' : 's'}`;
+
+      document.getElementById('reportCardChart').innerHTML = state.cards.map((c, idx) => {
+        const sum = txns.filter(t => t.cardId === c.id).reduce((s, t) => s + Number(t.amount), 0);
+        const pct = total > 0 ? Math.round((sum / total) * 100) : 0;
+        return `<div><div class="bar-row-top"><span>${c.name}</span><span>${formatINR(sum)} (${pct}%)</span></div><div class="bar-track"><div class="bar-fill ${idx % 2 === 1 ? 'teal' : ''}" style="width:${pct}%"></div></div></div>`;
+      }).join('');
+
+      document.getElementById('reportVehicleChart').innerHTML = ['Fronx', 'Ciaz', 'Celerio'].map((v, idx) => {
+        const sum = txns.filter(t => t.vehicle === v).reduce((s, t) => s + Number(t.amount), 0);
+        const pct = total > 0 ? Math.round((sum / total) * 100) : 0;
+        return `<div><div class="bar-row-top"><span>${v}</span><span>${formatINR(sum)} (${pct}%)</span></div><div class="bar-track"><div class="bar-fill ${idx === 1 ? 'teal' : ''}" style="width:${pct}%"></div></div></div>`;
+      }).join('');
+
+      const now = new Date();
+      const months = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        months.push({ label: d.toLocaleDateString('en-IN', { month: 'short' }), sum: state.transactions.filter(t => t.date.startsWith(key)).reduce((s, t) => s + Number(t.amount), 0) });
+      }
+      const maxM = Math.max(1, ...months.map(m => m.sum));
+      document.getElementById('reportMonthChart').innerHTML = months.map(m => {
+        const hPct = Math.max(4, Math.round((m.sum / maxM) * 82));
+        const shortVal = m.sum >= 1000 ? `₹${(m.sum / 1000).toFixed(1)}k` : (m.sum > 0 ? `₹${m.sum}` : '₹0');
+        return `<div class="month-col"><div class="month-val">${shortVal}</div><div class="month-bar" style="height:${hPct}%"></div><div class="month-lbl">${m.label}</div></div>`;
+      }).join('');
+    }
+
+    function renderSettingsView() {
+      document.getElementById('settingsCardsForm').innerHTML = state.cards.map((c, i) => `
+        <div style="padding:12px;background:var(--bg);border-radius:12px;margin-bottom:12px;">
+          <div style="font-size:0.76rem;font-weight:700;color:var(--teal-dark);margin-bottom:8px;">CARD ${i + 1} (${c.type})</div>
+          <div class="form-group"><label class="form-label">Card Display Name</label><input type="text" id="cfg_name_${c.id}" class="form-control" value="${escapeHTML(c.name)}" /></div>
+          <div class="form-row">
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Monthly Budget (₹)</label><input type="number" id="cfg_budget_${c.id}" class="form-control" min="500" step="100" value="${c.budget}" /></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Cycle Start Day (1–28)</label><input type="number" id="cfg_day_${c.id}" class="form-control" min="1" max="28" value="${c.cycleStartDay}" /></div>
+          </div>
+        </div>
+      `).join('');
+      document.getElementById('settingTermsNote').value = state.termsNote;
+      document.getElementById('settingsBackupMeta').textContent = state.lastBackupAt ? `Last backup exported: ${new Date(state.lastBackupAt).toLocaleString('en-IN')}` : 'Tip: Export a JSON backup after logging transactions.';
+    }
+
+    async function saveCardSettings() {
+      state.cards.forEach(c => {
+        const n = document.getElementById(`cfg_name_${c.id}`).value.trim();
+        const b = Number(document.getElementById(`cfg_budget_${c.id}`).value);
+        const d = Number(document.getElementById(`cfg_day_${c.id}`).value);
+        if (n) c.name = n;
+        if (b >= 500) c.budget = b;
+        if (d >= 1 && d <= 28) c.cycleStartDay = d;
+      });
+      await saveStateToDB();
+      renderAll();
+      showToast('Card settings updated');
+    }
+
+    async function saveTermsNote() {
+      state.termsNote = document.getElementById('settingTermsNote').value.trim() || DEFAULT_TERMS;
+      await saveStateToDB();
+      renderAll();
+      showToast('Terms note saved');
+    }
+
+    async function exportJSONBackup() {
+      state.lastBackupAt = new Date().toISOString();
+      await saveStateToDB();
+      renderAll();
+      const blob = new Blob([JSON.stringify({ app: 'Fuel Tracker - SBI BPCL Octane', exportedAt: state.lastBackupAt, version: 1, data: state }, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `fuel-tracker-backup-${toISODate(new Date())}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast('JSON backup downloaded');
+    }
+
+    function exportCSV() {
+      const headers = ['Date', 'Credit Card', 'Vehicle', 'Station', 'Amount (INR)', 'Notes'];
+      const rows = [...state.transactions].sort((a, b) => b.date.localeCompare(a.date)).map(t => {
+        const cardName = state.cards.find(c => c.id === t.cardId)?.name || t.cardId;
+        return [t.date, cardName, t.vehicle, t.station || 'BPCL', t.amount, t.notes || ''].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+      });
+      const blob = new Blob(['\uFEFF' + [headers.join(','), ...rows].join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `fuel-tracker-history-${toISODate(new Date())}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast('CSV exported for Excel');
+    }
+
+    let pendingImportData = null;
+    function handleImportFile(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          const importedState = parsed.data ? parsed.data : parsed;
+          if (!Array.isArray(importedState.transactions) || !Array.isArray(importedState.cards)) { alert('Invalid backup file format.'); return; }
+          pendingImportData = importedState;
+          document.getElementById('importSummaryText').textContent = `Found ${importedState.transactions.length} fuel transaction(s) and ${importedState.cards.length} card configuration(s) in "${file.name}". Choose how you would like to restore:`;
+          document.getElementById('importModal').classList.add('open');
+        } catch { alert('Could not read JSON backup file.'); }
+        finally { event.target.value = ''; }
+      };
+      reader.readAsText(file);
+    }
+
+    function closeImportModal() { pendingImportData = null; document.getElementById('importModal').classList.remove('open'); }
+
+    async function executeImport(mode) {
+      if (!pendingImportData) return;
+      if (mode === 'replace') state = { ...state, ...pendingImportData };
+      else {
+        const existingIds = new Set(state.transactions.map(t => t.id));
+        state.transactions = [...state.transactions, ...pendingImportData.transactions.filter(t => !existingIds.has(t.id))];
+      }
+      await saveStateToDB();
+      closeImportModal();
+      renderAll();
+      showToast('Backup restored successfully');
+    }
+
+    async function confirmAppReset() {
+      if (!window.confirm('WARNING: This will permanently erase all locally stored fuel transactions and reset card settings. Have you exported a JSON backup first?')) return;
+      state = { cards: JSON.parse(JSON.stringify(DEFAULT_CARDS)), transactions: [], termsNote: DEFAULT_TERMS, lastBackupAt: null };
+      await saveStateToDB();
+      renderAll();
+      showToast('App data reset');
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById(`view-${tabName}`).classList.add('active');
+      document.querySelector(`.nav-btn[data-tab="${tabName}"]`).classList.add('active');
+    }
+
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(el._timer);
+      el._timer = setTimeout(() => el.classList.remove('show'), 2400);
+    }
+
+    (async function init() {
+      await openDB();
+      await loadStateFromDB();
+      setReportPreset('cycle');
+      renderAll();
+    })();
+  </script>
+</body>
+</html>
