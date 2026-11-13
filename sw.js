@@ -1,5 +1,5 @@
 /* Fuel Tracker: network-first shell, offline fallback. Never clears IndexedDB. */
-const CACHE_NAME = 'fuel-tracker-shell-v4';
+const CACHE_NAME = 'fuel-tracker-shell-v5';
 const SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', event => {
